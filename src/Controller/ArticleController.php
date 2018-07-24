@@ -9,18 +9,25 @@ use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+use JMS\Serializer\Handler\HandlerRegistry;
 use Doctrine\ORM\EntityManagerInterface;
+use JMS\Serializer\SerializerBuilder;
 use JMS\Serializer\SerializerInterface;
+use App\Handler\ArticleHandler;
 
 class ArticleController extends Controller
 {
     private $em;
     private $sr;
     
-    public function __construct(EntityManagerInterface $em, SerializerInterface $sr) 
+    public function __construct(EntityManagerInterface $em) 
     {
         $this->em = $em;
-        $this->sr = $sr;
+        $this->sr = SerializerBuilder::create()
+                    ->configureHandlers(function(HandlerRegistry $registry) {
+                                            $registry->registerSubscribingHandler(new ArticleHandler());
+                                        })
+                    ->build();
     }
     
     /**
@@ -66,6 +73,25 @@ class ArticleController extends Controller
                                 );
          $response->headers->set('Content-Type', 'application/json');
          
+         return $response;
+     }
+     
+     /**
+     * @Route("/article/{id}", name="aticle_show")
+     **/
+     public function showAction($id)
+     {
+         $article = $this->em->getRepository(Article::class)->findOneBy(['id' => $id]);
+         if($article === null) {
+             $response = new Response( json_encode(['error' => 'No article was found for id '. $id]), Response::HTTP_NOT_FOUND);
+         } else {
+             $response = new Response(
+                                        $this->sr->serialize($article, 'json'),
+                                        Response::HTTP_OK
+                                    );
+         }
+         
+         $response->headers->set('Content-Type', 'application/json');
          return $response;
      }
 }
